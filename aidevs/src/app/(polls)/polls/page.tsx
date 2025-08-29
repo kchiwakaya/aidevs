@@ -28,7 +28,7 @@ export default function PollsListPage() {
               <CardDescription>{poll.description}</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-sm text-muted-foreground">Opens soon • Placeholder</div>
+              <div className="text-sm text-muted-foreground">Go to poll</div>
             </CardContent>
           </Card>
         ))}

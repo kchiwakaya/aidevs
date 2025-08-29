@@ -6,6 +6,7 @@ import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { Textarea } from "@/src/components/ui/textarea";
 
+
 export default function NewPollPage() {
   return (
     <div className="mx-auto max-w-2xl p-4">

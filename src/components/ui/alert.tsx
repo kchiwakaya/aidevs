@@ -26,3 +26,4 @@ export function AlertTitle({ className, ...props }: React.HTMLAttributes<HTMLPar
 export function AlertDescription({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
   return <div className={cn("text-sm [&_p]:leading-relaxed", className)} {...props} />;
 }
+
