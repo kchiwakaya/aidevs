@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { voteOnPoll } from '@/lib/polls'
 import type { PollWithOptions } from '@/types/database'
 
@@ -60,8 +61,8 @@ export default function PollVoting({ poll }: PollVotingProps) {
   if (hasVoted) {
     return (
       <div className="text-center py-8">
-        <p className="text-green-600 font-medium">Thank you for voting!</p>
-        <p className="text-sm text-muted-foreground mt-2">
+        <div className="text-green-600 font-medium mb-2">Thank you for voting!</div>
+        <p className="text-sm text-muted-foreground">
           Your vote has been recorded. Results are updated in real-time.
         </p>
       </div>
@@ -69,11 +70,11 @@ export default function PollVoting({ poll }: PollVotingProps) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {error && (
-        <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
-          {error}
-        </div>
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
       <div className="space-y-3">
@@ -84,25 +85,25 @@ export default function PollVoting({ poll }: PollVotingProps) {
           return (
             <Card
               key={option.id}
-              className={`cursor-pointer transition-colors hover:bg-gray-50 ${
-                isSelected ? 'ring-2 ring-blue-500 bg-blue-50' : ''
+              className={`cursor-pointer transition-all duration-200 hover:shadow-md ${
+                isSelected ? 'ring-2 ring-primary bg-primary/5' : 'hover:bg-muted/50'
               }`}
               onClick={() => handleOptionSelect(option.id)}
             >
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
-                    <div className={`w-4 h-4 rounded-full border-2 ${
-                      isSelected ? 'bg-blue-500 border-blue-500' : 'border-gray-300'
+                    <div className={`w-4 h-4 rounded-full border-2 transition-colors ${
+                      isSelected ? 'bg-primary border-primary' : 'border-muted-foreground'
                     }`}>
                       {isSelected && (
-                        <div className="w-2 h-2 bg-white rounded-full m-0.5" />
+                        <div className="w-2 h-2 bg-primary-foreground rounded-full m-0.5" />
                       )}
                     </div>
-                    <span className="font-medium">{option.text}</span>
+                    <span className="font-medium text-foreground">{option.text}</span>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm font-medium">{option.votes} votes</div>
+                    <div className="text-sm font-medium text-foreground">{option.votes} votes</div>
                     <div className="text-xs text-muted-foreground">
                       {percentage.toFixed(1)}%
                     </div>
@@ -110,9 +111,9 @@ export default function PollVoting({ poll }: PollVotingProps) {
                 </div>
                 
                 {/* Progress bar */}
-                <div className="mt-2 bg-gray-200 rounded-full h-2">
+                <div className="mt-3 bg-muted rounded-full h-2">
                   <div
-                    className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                    className="bg-primary h-2 rounded-full transition-all duration-300"
                     style={{ width: `${percentage}%` }}
                   />
                 </div>
@@ -122,15 +123,18 @@ export default function PollVoting({ poll }: PollVotingProps) {
         })}
       </div>
 
-      <div className="flex justify-between items-center pt-4">
-        <p className="text-sm text-muted-foreground">
-          Total votes: {totalVotes}
-          {poll.allow_multiple_votes && ' • Multiple selections allowed'}
-        </p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pt-4 border-t">
+        <div className="text-sm text-muted-foreground">
+          <p>Total votes: {totalVotes}</p>
+          {poll.allow_multiple_votes && (
+            <p className="text-xs">Multiple selections allowed</p>
+          )}
+        </div>
         
         <Button 
           onClick={handleVote}
           disabled={isVoting || selectedOptions.length === 0}
+          className="w-full sm:w-auto"
         >
           {isVoting ? 'Submitting...' : 'Submit Vote'}
         </Button>
