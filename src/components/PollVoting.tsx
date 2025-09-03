@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo, useCallback, memo } from 'react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -11,17 +11,80 @@ type PollVotingProps = {
   poll: PollWithOptions
 }
 
-export default function PollVoting({ poll }: PollVotingProps) {
+// Memoized option component to prevent unnecessary re-renders
+const PollOption = memo(({ 
+  option, 
+  isSelected, 
+  percentage, 
+  onSelect 
+}: {
+  option: { id: string; text: string; votes: number }
+  isSelected: boolean
+  percentage: number
+  onSelect: (id: string) => void
+}) => (
+  <Card
+    className={`cursor-pointer transition-all duration-200 hover:shadow-md ${
+      isSelected ? 'ring-2 ring-primary bg-primary/5' : 'hover:bg-muted/50'
+    }`}
+    onClick={() => onSelect(option.id)}
+  >
+    <CardContent className="p-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <div className={`w-4 h-4 rounded-full border-2 transition-colors ${
+            isSelected ? 'bg-primary border-primary' : 'border-muted-foreground'
+          }`}>
+            {isSelected && (
+              <div className="w-2 h-2 bg-primary-foreground rounded-full m-0.5" />
+            )}
+          </div>
+          <span className="font-medium text-foreground">{option.text}</span>
+        </div>
+        <div className="text-right">
+          <div className="text-sm font-medium text-foreground">{option.votes} votes</div>
+          <div className="text-xs text-muted-foreground">
+            {percentage.toFixed(1)}%
+          </div>
+        </div>
+      </div>
+      
+      {/* Progress bar */}
+      <div className="mt-3 bg-muted rounded-full h-2">
+        <div
+          className="bg-primary h-2 rounded-full transition-all duration-300"
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
+    </CardContent>
+  </Card>
+))
+
+PollOption.displayName = 'PollOption'
+
+function PollVoting({ poll }: PollVotingProps) {
   const [selectedOptions, setSelectedOptions] = useState<string[]>([])
   const [isVoting, setIsVoting] = useState(false)
   const [hasVoted, setHasVoted] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [updatedPoll, setUpdatedPoll] = useState<PollWithOptions | null>(null)
 
-  // Calculate total votes
-  const totalVotes = poll.poll_options.reduce((sum, option) => sum + option.votes, 0)
+  // Use the updated poll data if available, otherwise use the original poll
+  const currentPoll = updatedPoll || poll
 
-  const handleOptionSelect = (optionId: string) => {
-    if (poll.allow_multiple_votes) {
+  // Memoize expensive calculations
+  const { totalVotes, optionPercentages } = useMemo(() => {
+    const total = currentPoll.poll_options.reduce((sum, option) => sum + option.votes, 0)
+    const percentages = currentPoll.poll_options.map(option => ({
+      id: option.id,
+      percentage: total > 0 ? (option.votes / total) * 100 : 0
+    }))
+    return { totalVotes: total, optionPercentages: percentages }
+  }, [currentPoll.poll_options])
+
+  // Memoize event handlers to prevent unnecessary re-renders
+  const handleOptionSelect = useCallback((optionId: string) => {
+    if (currentPoll.allow_multiple_votes) {
       // Toggle option for multiple vote polls
       setSelectedOptions(prev => 
         prev.includes(optionId) 
@@ -32,9 +95,9 @@ export default function PollVoting({ poll }: PollVotingProps) {
       // Single selection for single vote polls
       setSelectedOptions([optionId])
     }
-  }
+  }, [currentPoll.allow_multiple_votes])
 
-  const handleVote = async () => {
+  const handleVote = useCallback(async () => {
     if (selectedOptions.length === 0) {
       setError('Please select at least one option')
       return
@@ -44,19 +107,33 @@ export default function PollVoting({ poll }: PollVotingProps) {
     setError(null)
 
     try {
-      // For multiple votes, submit each selection separately
-      for (const optionId of selectedOptions) {
-        await voteOnPoll(poll.id, optionId)
-      }
+      // Batch all vote submissions
+      const votePromises = selectedOptions.map(optionId => 
+        voteOnPoll(currentPoll.id, optionId)
+      )
+      
+      await Promise.all(votePromises)
+      
+      // Update poll data locally instead of reloading the page
+      const updatedOptions = currentPoll.poll_options.map(option => {
+        if (selectedOptions.includes(option.id)) {
+          return { ...option, votes: option.votes + 1 }
+        }
+        return option
+      })
+      
+      setUpdatedPoll({
+        ...currentPoll,
+        poll_options: updatedOptions
+      })
       
       setHasVoted(true)
-      // Refresh the page to show updated results
-      window.location.reload()
+      setIsVoting(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit vote')
       setIsVoting(false)
     }
-  }
+  }, [selectedOptions, currentPoll])
 
   if (hasVoted) {
     return (
@@ -78,47 +155,18 @@ export default function PollVoting({ poll }: PollVotingProps) {
       )}
 
       <div className="space-y-3">
-        {poll.poll_options.map((option) => {
-          const percentage = totalVotes > 0 ? (option.votes / totalVotes) * 100 : 0
+        {currentPoll.poll_options.map((option) => {
+          const percentage = optionPercentages.find(p => p.id === option.id)?.percentage || 0
           const isSelected = selectedOptions.includes(option.id)
 
           return (
-            <Card
+            <PollOption
               key={option.id}
-              className={`cursor-pointer transition-all duration-200 hover:shadow-md ${
-                isSelected ? 'ring-2 ring-primary bg-primary/5' : 'hover:bg-muted/50'
-              }`}
-              onClick={() => handleOptionSelect(option.id)}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-4 h-4 rounded-full border-2 transition-colors ${
-                      isSelected ? 'bg-primary border-primary' : 'border-muted-foreground'
-                    }`}>
-                      {isSelected && (
-                        <div className="w-2 h-2 bg-primary-foreground rounded-full m-0.5" />
-                      )}
-                    </div>
-                    <span className="font-medium text-foreground">{option.text}</span>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-medium text-foreground">{option.votes} votes</div>
-                    <div className="text-xs text-muted-foreground">
-                      {percentage.toFixed(1)}%
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Progress bar */}
-                <div className="mt-3 bg-muted rounded-full h-2">
-                  <div
-                    className="bg-primary h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${percentage}%` }}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+              option={option}
+              isSelected={isSelected}
+              percentage={percentage}
+              onSelect={handleOptionSelect}
+            />
           )
         })}
       </div>
@@ -126,7 +174,7 @@ export default function PollVoting({ poll }: PollVotingProps) {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pt-4 border-t">
         <div className="text-sm text-muted-foreground">
           <p>Total votes: {totalVotes}</p>
-          {poll.allow_multiple_votes && (
+          {currentPoll.allow_multiple_votes && (
             <p className="text-xs">Multiple selections allowed</p>
           )}
         </div>
@@ -142,3 +190,6 @@ export default function PollVoting({ poll }: PollVotingProps) {
     </div>
   )
 }
+
+// Memoize the main component to prevent unnecessary re-renders when props haven't changed
+export default memo(PollVoting)
